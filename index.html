@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Digital Birthday Card</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Playfair Display, Caveat (handwriting), Plus Jakarta Sans -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Playfair+Display:ital,wght@0,600;0,800;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Canvas Confetti for celebratory bursts -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Custom Fonts & 3D Transform Utilities (Required for 3D card mechanics) */
+        :root {
+            --bg-page: #f5f2eb;
+            --card-cover-bg: #fffcf7;
+            --card-cover-border: #d4af37;
+            --card-inside-bg: #ffffff;
+            --card-text-primary: #2c251d;
+            --card-text-secondary: #6e5d4f;
+            --card-accent: #c59b27;
+            --card-shadow: rgba(44, 37, 29, 0.18);
+            --pattern-opacity: 0.08;
+        }
+
+        /* Theme: Warm Paper & Gold (Default) */
+        [data-theme="warm-gold"] {
+            --bg-page: #f4efe6;
+            --card-cover-bg: #fffdf9;
+            --card-cover-border: #d4af37;
+            --card-inside-bg: #fcfaf5;
+            --card-text-primary: #2b2318;
+            --card-text-secondary: #6b5b45;
+            --card-accent: #c89d28;
+            --card-shadow: rgba(43, 35, 24, 0.2);
+        }
+
+        /* Theme: Midnight Starlight */
+        [data-theme="midnight"] {
+            --bg-page: #0b1120;
+            --card-cover-bg: #131c31;
+            --card-cover-border: #fbbf24;
+            --card-inside-bg: #182238;
+            --card-text-primary: #f8fafc;
+            --card-text-secondary: #94a3b8;
+            --card-accent: #fbbf24;
+            --card-shadow: rgba(0, 0, 0, 0.55);
+        }
+
+        /* Theme: Pastel Mint */
+        [data-theme="pastel-mint"] {
+            --bg-page: #e6f4f1;
+            --card-cover-bg: #f7fcfa;
+            --card-cover-border: #5bb5a2;
+            --card-inside-bg: #ffffff;
+            --card-text-primary: #1e3a34;
+            --card-text-secondary: #4e736b;
+            --card-accent: #3d9986;
+            --card-shadow: rgba(30, 58, 52, 0.16);
+        }
+
+        /* Theme: Retro Synth */
+        [data-theme="retro-synth"] {
+            --bg-page: #1a0b2e;
+            --card-cover-bg: #261142;
+            --card-cover-border: #ff2a85;
+            --card-inside-bg: #1f0e36;
+            --card-text-primary: #fff0f7;
+            --card-text-secondary: #d4a5ff;
+            --card-accent: #00f0ff;
+            --card-shadow: rgba(255, 42, 133, 0.28);
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-page);
+            color: var(--card-text-primary);
+            transition: background-color 0.5s ease, color 0.5s ease;
+            overflow-x: hidden;
+        }
+
+        .font-serif-display {
+            font-family: 'Playfair Display', serif;
+        }
+
+        .font-handwriting {
+            font-family: 'Caveat', cursive;
+        }
+
+        /* 3D Perspective Stage */
+        .scene {
+            perspective: 2000px;
+        }
+
+        /* Card Container that shifts right slightly when opened so the spread stays centered */
+        .card-wrapper {
+            transform-style: preserve-3d;
+            transition: transform 0.9s cubic-bezier(0.25, 1, 0.35, 1);
+        }
+
+        @media (min-width: 768px) {
+            .card-wrapper.is-open {
+                transform: translateX(50%);
+            }
+        }
+
+        /* Front Cover Leaf (Flips open along left spine) */
+        .card-front {
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform-origin: left center;
+            transform-style: preserve-3d;
+            -webkit-transform-style: preserve-3d;
+            transition: transform 0.9s cubic-bezier(0.25, 1, 0.35, 1), box-shadow 0.9s ease;
+            box-shadow: 0 20px 45px -10px var(--card-shadow);
+        }
+
+        .card-wrapper.is-open .card-front {
+            transform: rotateY(-180deg);
+            box-shadow: -15px 20px 40px -12px var(--card-shadow);
+        }
+
+        /* Faces of the Front Cover */
+        .card-face {
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            transform-style: preserve-3d;
+        }
+
+        .card-face-front {
+            transform: rotateY(0deg) translateZ(1px);
+            background-color: var(--card-cover-bg);
+            border: 2px solid var(--card-cover-border);
+            transition: background-color 0.4s ease, border-color 0.4s ease, opacity 0.12s ease, visibility 0.12s ease;
+        }
+
+        /* Inside Left Page (Back of the front cover) */
+        .card-face-back {
+            transform: rotateY(180deg) translateZ(1px);
+            background-color: var(--card-inside-bg);
+            border: 2px solid var(--card-cover-border);
+            transition: background-color 0.4s ease, border-color 0.4s ease, opacity 0.12s ease, visibility 0.12s ease;
+        }
+
+        /* Hard visibility cutoff past 90deg rotation to guarantee zero backface bleed-through on Firefox/Linux */
+        .card-face-front.face-hidden {
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
+
+        .card-face-back.face-hidden {
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
+
+        /* Inside Right Page (Base stationary page) */
+        .card-inside-right {
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--card-inside-bg);
+            border: 2px solid var(--card-cover-border);
+            box-shadow: 0 20px 45px -10px var(--card-shadow);
+            transition: background-color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
+        }
+
+        /* Subtle paper grain & decorative dot background */
+        .paper-texture {
+            background-image: radial-gradient(var(--card-accent) 0.75px, transparent 0.75px);
+            background-size: 20px 20px;
+        }
+
+        /* Mobile Open State adjustments: Fold cover out smoothly so inside right page stays centered */
+        @media (max-width: 767px) {
+            .card-wrapper.is-open .card-front {
+                transform: rotateY(-180deg);
+                opacity: 0;
+                pointer-events: none;
+            }
+            .card-front {
+                transition: transform 0.8s cubic-bezier(0.25, 1, 0.35, 1), opacity 0.35s ease 0.25s;
+            }
+        }
+
+        /* Custom subtle pulse for "Tap to Open" badge */
+        @keyframes softFloat {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-4px); }
+        }
+        .animate-float {
+            animation: softFloat 2.8s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body data-theme="pastel-mint" class="min-h-screen flex flex-col justify-center selection:bg-emerald-200 selection:text-stone-900">
+
+    <!-- Main 3D Card Stage -->
+    <main class="flex-1 flex flex-col items-center justify-center px-4 py-6 relative">
+        
+        <!-- 3D Perspective Container -->
+        <div class="scene w-full max-w-[360px] sm:max-w-[420px] md:max-w-[460px] aspect-[3/4.1] max-h-[82vh] relative select-none">
+            
+            <!-- Card Wrapper (Handles centering shift on desktop when opened) -->
+            <div id="cardWrapper" class="card-wrapper w-full h-full relative">
+
+                <!-- INSIDE RIGHT PAGE (Stationary Base) -->
+                <div class="card-inside-right absolute inset-0 rounded-2xl p-5 sm:p-7 flex flex-col justify-between overflow-hidden">
+                    <!-- Decorative Inner Border -->
+                    <div class="w-full h-full border border-dashed rounded-xl p-5 sm:p-6 flex flex-col justify-between relative" style="border-color: var(--card-accent);">
+                        
+                        <!-- Top Greeting Header -->
+                        <div class="space-y-1">
+                            <p class="text-xs uppercase tracking-[0.2em] font-semibold opacity-75" style="color: var(--card-accent);">For You</p>
+                            <h2 id="displayRecipient" class="font-serif-display text-2xl sm:text-3xl font-bold tracking-tight" style="color: var(--card-text-primary);">
+                                Papero
+                            </h2>
+                        </div>
+
+                        <!-- Personal Message Body -->
+                        <div class="my-auto py-4">
+                            <p id="displayMessage" class="text-sm sm:text-base leading-relaxed whitespace-pre-line font-normal" style="color: var(--card-text-secondary);">
+                                Another trip around the sun and you just keep shining brighter! Wishing you a birthday filled with unforgettable memories.
+                            </p>
+                        </div>
+
+                        <!-- Sender Signature & Celebration Footer -->
+                        <div class="pt-3 border-t border-black/10 flex items-end justify-between gap-2">
+                            <div>
+                                <p class="text-xs opacity-70 mb-0.5" style="color: var(--card-text-secondary);">Warmest wishes,</p>
+                                <p id="displaySender" class="font-handwriting text-2xl sm:text-3xl font-bold" style="color: var(--card-accent);">
+                                    With love, Yuri &lt;3
+                                </p>
+                            </div>
+                            <button onclick="triggerConfettiBurst()" title="Pop Confetti!" class="p-2.5 rounded-full hover:scale-110 active:scale-95 transition cursor-pointer" style="background-color: color-mix(in srgb, var(--card-accent) 18%, transparent); color: var(--card-accent);">
+                                <i data-lucide="party-popper" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FRONT FOLDING COVER LEAF (Front Cover + Inside Left Page) -->
+                <div id="cardFrontLeaf" onclick="openCard()" class="card-front absolute inset-0 rounded-2xl cursor-pointer z-10">
+                    
+                    <!-- FRONT COVER FACE -->
+                    <div id="cardFaceFront" class="card-face card-face-front absolute inset-0 rounded-2xl p-5 sm:p-7 flex flex-col items-center justify-between text-center overflow-hidden">
+                        
+                        <!-- Subtle Background Pattern -->
+                        <div class="paper-texture absolute inset-0 opacity-25 pointer-events-none"></div>
+
+                        <!-- Inner Ornamental Frame -->
+                        <div class="w-full h-full border rounded-xl p-5 sm:p-6 flex flex-col items-center justify-between relative z-10" style="border-color: var(--card-accent);">
+                            
+                            <!-- Top Decorative Stars / Flourish -->
+                            <div class="flex items-center gap-2 opacity-80" style="color: var(--card-accent);">
+                                <span class="h-[1px] w-8 bg-current"></span>
+                                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                                <span class="h-[1px] w-8 bg-current"></span>
+                            </div>
+
+                            <!-- Centerpiece Illustration & Typography -->
+                            <div class="flex flex-col items-center my-auto space-y-5">
+                                <!-- Bespoke Minimalist Birthday Cake & Candles SVG -->
+                                <div class="w-28 h-28 sm:w-32 sm:h-32 rounded-full flex items-center justify-center shadow-inner relative" style="background-color: color-mix(in srgb, var(--card-accent) 12%, transparent);">
+                                    <svg viewBox="0 0 120 120" class="w-20 h-20 sm:w-24 sm:h-24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <!-- Glowing Aura -->
+                                        <circle cx="60" cy="34" r="14" fill="var(--card-accent)" fill-opacity="0.18"/>
+                                        <!-- Candle Flames -->
+                                        <path d="M44 34C44 34 41 28 44 24C47 28 44 34 44 34Z" fill="var(--card-accent)"/>
+                                        <path d="M60 30C60 30 56.5 23 60 18C63.5 23 60 30 60 30Z" fill="var(--card-accent)"/>
+                                        <path d="M76 34C76 34 73 28 76 24C79 28 76 34 76 34Z" fill="var(--card-accent)"/>
+                                        <!-- Candles -->
+                                        <rect x="42" y="36" width="4" height="14" rx="2" stroke="var(--card-text-primary)" stroke-width="2.2"/>
+                                        <rect x="58" y="32" width="4" height="18" rx="2" stroke="var(--card-text-primary)" stroke-width="2.2"/>
+                                        <rect x="74" y="36" width="4" height="14" rx="2" stroke="var(--card-text-primary)" stroke-width="2.2"/>
+                                        <!-- Top Cake Tier -->
+                                        <rect x="32" y="50" width="56" height="20" rx="6" stroke="var(--card-text-primary)" stroke-width="2.5" fill="var(--card-cover-bg)"/>
+                                        <!-- Frosting Wave Top Tier -->
+                                        <path d="M32 58C37 62 42 55 47 59C52 63 56 55 60 59C64 63 68 55 73 59C78 63 83 56 88 58" stroke="var(--card-accent)" stroke-width="2.4" stroke-linecap="round"/>
+                                        <!-- Bottom Cake Tier -->
+                                        <rect x="22" y="70" width="76" height="24" rx="7" stroke="var(--card-text-primary)" stroke-width="2.5" fill="var(--card-cover-bg)"/>
+                                        <!-- Frosting Wave Bottom Tier -->
+                                        <path d="M22 79C29 84 35 76 42 80C49 84 54 76 60 80C66 84 71 76 78 80C85 84 91 77 98 79" stroke="var(--card-accent)" stroke-width="2.4" stroke-linecap="round"/>
+                                        <!-- Cake Stand Base -->
+                                        <path d="M16 94H104" stroke="var(--card-text-primary)" stroke-width="2.8" stroke-linecap="round"/>
+                                        <path d="M46 94L42 103H78L74 94" stroke="var(--card-text-primary)" stroke-width="2.4" stroke-linejoin="round"/>
+                                    </svg>
+                                </div>
+
+                                <!-- Cover Headline -->
+                                <div class="space-y-2 px-2">
+                                    <h1 id="displayCoverTitle" class="font-serif-display text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight" style="color: var(--card-text-primary);">
+                                        Happy Birthday!
+                                    </h1>
+                                    <p id="displayCoverSubtitle" class="text-xs sm:text-sm font-medium tracking-wide uppercase opacity-80" style="color: var(--card-accent);">
+                                        Tap to open your card
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Interactive Open Prompt -->
+                            <div class="animate-float flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-full" style="background-color: color-mix(in srgb, var(--card-accent) 15%, transparent); color: var(--card-text-primary);">
+                                <span>Open Card</span>
+                                <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- INSIDE LEFT FACE (Visible on desktop when card opens) -->
+                    <div id="cardFaceBack" class="card-face card-face-back face-hidden absolute inset-0 rounded-2xl p-5 sm:p-7 flex flex-col items-center justify-center text-center overflow-hidden">
+                        <div class="paper-texture absolute inset-0 opacity-20 pointer-events-none"></div>
+                        
+                        <div class="w-full h-full border rounded-xl p-5 sm:p-6 flex flex-col items-center justify-between relative z-10" style="border-color: color-mix(in srgb, var(--card-accent) 40%, transparent);">
+                            <div class="text-xs uppercase tracking-[0.25em] opacity-60" style="color: var(--card-text-secondary);">
+                                Celebratory Edition
+                            </div>
+
+                            <!-- Decorative Festive Emblem -->
+                            <div class="my-auto flex flex-col items-center space-y-4">
+                                <div class="w-24 h-24 rounded-full flex items-center justify-center border" style="border-color: var(--card-accent); background-color: color-mix(in srgb, var(--card-accent) 10%, transparent);">
+                                    <i data-lucide="gift" class="w-10 h-10" style="color: var(--card-accent);"></i>
+                                </div>
+                                <blockquote class="font-serif-display italic text-lg sm:text-xl px-2 leading-snug" style="color: var(--card-text-primary);">
+                                    “congrats on another year of surviving the chaos and making it look easy.”
+                                </blockquote>
+                            </div>
+
+                            <button onclick="event.stopPropagation(); closeCard();" class="text-xs font-medium underline underline-offset-4 opacity-70 hover:opacity-100 transition cursor-pointer" style="color: var(--card-text-secondary);">
+                                Fold card closed
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- Helper Hint Below Card -->
+        <p id="stageHint" class="mt-5 text-xs sm:text-sm font-medium opacity-75 text-center transition-opacity duration-300" style="color: var(--card-text-secondary);">
+
+        </p>
+    </main>
+
+    <script>
+        // =========================================================================
+        // CUSTOMIZE YOUR CARD CONTENT & THEME HERE
+        // =========================================================================
+        const CARD_CONFIG = {
+            theme: "pastel-mint", // Options: "pastel-mint", "warm-gold", "midnight", "retro-synth"
+            coverTitle: "Happy Birthday!",
+            coverSubtitle: "Tap to open your card",
+            recipient: "Papero",
+            message: "Another trip around the sun and you just keep shining brighter! Wishing you a birthday filled with unforgettable memories.",
+            sender: "With love, Yuri <3"
+        };
+        // =========================================================================
+
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // Apply configured theme and text on load
+        document.body.setAttribute('data-theme', CARD_CONFIG.theme);
+        document.getElementById('displayCoverTitle').textContent = CARD_CONFIG.coverTitle;
+        document.getElementById('displayCoverSubtitle').textContent = CARD_CONFIG.coverSubtitle;
+        document.getElementById('displayRecipient').textContent = CARD_CONFIG.recipient;
+        document.getElementById('displayMessage').textContent = CARD_CONFIG.message;
+        document.getElementById('displaySender').textContent = CARD_CONFIG.sender;
+
+        // Card State & DOM References
+        let isCardOpen = false;
+        let flipTimer = null;
+
+        const cardWrapper = document.getElementById('cardWrapper');
+        const cardFaceFront = document.getElementById('cardFaceFront');
+        const cardFaceBack = document.getElementById('cardFaceBack');
+        const stageHint = document.getElementById('stageHint');
+
+        /**
+         * Opens the 3D folding birthday card and fires celebratory confetti
+         */
+        function openCard() {
+            if (isCardOpen) return;
+            isCardOpen = true;
+            cardWrapper.classList.add('is-open');
+
+            // Swap front/back face visibility right at the 90-degree midpoint (~340ms)
+            // so front cover text can never bleed through or mirror in any browser
+            clearTimeout(flipTimer);
+            flipTimer = setTimeout(() => {
+                if (isCardOpen) {
+                    cardFaceFront.classList.add('face-hidden');
+                    cardFaceBack.classList.remove('face-hidden');
+                }
+            }, 340);
+
+
+
+            // Trigger celebratory confetti slightly timed with the card swing
+            setTimeout(() => {
+                triggerConfettiBurst();
+            }, 320);
+        }
+
+        /**
+         * Closes/Resets the 3D card back to its cover state
+         */
+        function closeCard() {
+            if (!isCardOpen) return;
+            isCardOpen = false;
+            cardWrapper.classList.remove('is-open');
+
+            // Restore front cover visibility right at the 90-degree midpoint when folding shut
+            clearTimeout(flipTimer);
+            flipTimer = setTimeout(() => {
+                if (!isCardOpen) {
+                    cardFaceBack.classList.add('face-hidden');
+                    cardFaceFront.classList.remove('face-hidden');
+                }
+            }, 340);
+;
+        }
+
+        /**
+         * Fires theme-coordinated confetti bursts
+         */
+        function triggerConfettiBurst() {
+            if (typeof confetti !== 'function') return;
+
+            const themePalettes = {
+                'warm-gold': ['#d4af37', '#f59e0b', '#fde68a', '#ffffff', '#b45309'],
+                'midnight': ['#fbbf24', '#38bdf8', '#818cf8', '#f8fafc', '#f472b6'],
+                'pastel-mint': ['#3d9986', '#6ee7b7', '#fcd34d', '#f9a8d4', '#ffffff'],
+                'retro-synth': ['#ff2a85', '#00f0ff', '#ffe600', '#b829ea', '#ffffff']
+            };
+
+            const colors = themePalettes[CARD_CONFIG.theme] || themePalettes['pastel-mint'];
+
+            // Center burst
+            confetti({
+                particleCount: 65,
+                spread: 75,
+                origin: { y: 0.6 },
+                colors: colors,
+                disableForReducedMotion: true
+            });
+
+            // Dual side cannons for extra festivity
+            setTimeout(() => {
+                confetti({
+                    particleCount: 30,
+                    angle: 60,
+                    spread: 55,
+                    origin: { x: 0.15, y: 0.65 },
+                    colors: colors
+                });
+                confetti({
+                    particleCount: 30,
+                    angle: 120,
+                    spread: 55,
+                    origin: { x: 0.85, y: 0.65 },
+                    colors: colors
+                });
+            }, 180);
+        }
+    </script>
+</body>
+</html>
